@@ -6,7 +6,9 @@ No warranties, guarantees, etc :)
 
 ## Pimoroni Presto
 
-- Calendar
+### Calendar
+
+Basic visual calendar with touchscreen left and right.
 
 ## License
 

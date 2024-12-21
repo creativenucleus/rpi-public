@@ -30,14 +30,14 @@ def getDaysInMonth(year, month):
     # The day 28 exists in every month. 4 days later, it's always next month
     nextMonth = date.replace(day=28) + datetime.timedelta(days=4)
     # subtracting the number of the current day brings us back one month
-    return (nextMonth - date).days
+    return (nextMonth.replace(day=1) - date).days
 
 def initDays(year, month):
     global days
     days = []
     iDay=datetime.date(year, month, 1).weekday()
     daysInMonth = getDaysInMonth(year, month)
-    for i in range(0, 31):
+    for i in range(0, daysInMonth):
         w = 60
         h = 60
         x = 2+68*(iDay%7)+4

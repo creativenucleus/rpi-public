@@ -15,3 +15,5 @@ Upload `main.py` and `config.py` to the Presto if you'd like it to be the defaul
 The program should connect to Wifi, sync NTP time, and display a calendar view, highlighting the current day.
 
 Touch the left side of the screen to go back a month and the right side to advance.
+
+If the calendar is left for 30 seconds, it dims. Press the centre of the screen to wake it.

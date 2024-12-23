@@ -3,23 +3,38 @@
 import datetime
 import math
 import time
+import config
+import network
+import ntptime
+import sys
 
 from presto import Presto
 
 presto = Presto(True)
 display = presto.display
-WIDTH, HEIGHT = display.get_bounds()
 
-today = datetime.date.today()
-YEAR, MONTH = today.year, today.month
+PEN_BG = display.create_pen(20, 0, 60)
+PEN_DAY_BG = display.create_pen(255, 255, 255)
+PEN_DAY_BG_TODAY = display.create_pen(255, 255, 120)
+PEN_DAY_NUMBER = display.create_pen(60, 150, 255)
+
+# Show startup screen (otherwise we get pixelated junk before the first update)
+display.set_layer(0)
+display.set_pen(PEN_BG)
+display.clear()
+display.set_pen(PEN_DAY_NUMBER)
+text = "Initialising!"
+textW = display.measure_text(text, 3)
+display.text(text, int(240-textW/2), 6, textW, 3)
+presto.update()
 
 class Day:
-    def __init__(self, x, y, w, h, text):
+    def __init__(self, x, y, w, h, dayOfMonth):
         self.x = x
         self.y = y
         self.w = w
         self.h = h
-        self.text = text
+        self.dayOfMonth = dayOfMonth
 
 days = None
 
@@ -42,32 +57,44 @@ def initDays(year, month):
         h = 60
         x = 2+68*(iDay%7)+4
         y = 62+68*math.floor(iDay/7)
-        days.append(Day(int(x),int(y),int(w),int(h),str(i+1)))
+        days.append(Day(int(x),int(y),int(w),int(h),i+1))
         iDay=iDay+1
 
-PEN_BG = display.create_pen(20, 0, 60)
-PEN_DAY_BG = display.create_pen(255, 255, 255)
-PEN_DAY_NUMBER = display.create_pen(60, 150, 255)
+if not presto.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
+    print("Could not connect")
+try:
+    ntptime.settime()
+    print("NTP Time sync")
+except OSError:
+    print("Unable to contact NTP server")
 
-initDays(YEAR, MONTH)
+today = datetime.date.today()
+VIEW_YEAR, VIEW_MONTH = today.year, today.month
+
+initDays(VIEW_YEAR, VIEW_MONTH)
 
 touch = presto.touch
 updateScreen = True
+DISPLAYED_MINUTE = None
 
 while True:
+    t = time.localtime()
+    if DISPLAYED_MINUTE != t[4]:
+        updateScreen = True
+
     touch.poll()
     if touch.state:
         if touch.x<240:
-            MONTH = MONTH - 1
-            if MONTH < 1:
-                MONTH = 12
-                YEAR = YEAR - 1
+            VIEW_MONTH = VIEW_MONTH - 1
+            if VIEW_MONTH < 1:
+                VIEW_MONTH = 12
+                VIEW_YEAR = VIEW_YEAR - 1
         else:
-            MONTH = MONTH + 1
-            if MONTH > 12:
-                MONTH = 1
-                YEAR = YEAR + 1
-        initDays(YEAR, MONTH)
+            VIEW_MONTH = VIEW_MONTH + 1
+            if VIEW_MONTH > 12:
+                VIEW_MONTH = 1
+                VIEW_YEAR = VIEW_YEAR + 1
+        initDays(VIEW_YEAR, VIEW_MONTH)
         updateScreen = True
 
     if updateScreen:
@@ -78,7 +105,7 @@ while True:
         display.set_pen(PEN_DAY_NUMBER)
         monthNames = ["January", "February", "March", "April", "May", "June",
                       "July", "August", "September", "October", "November", "December"]
-        text = f"{monthNames[MONTH-1]} {str(YEAR)}"
+        text = f"{monthNames[VIEW_MONTH-1]} {str(VIEW_YEAR)}"
         textW = display.measure_text(text, 3)
         display.text(text, int(240-textW/2), 6, textW, 3)
 
@@ -87,11 +114,19 @@ while True:
             display.text(dayName, 16 + i*68, 38)
             
         for day in days:
-            display.set_pen(PEN_DAY_BG)
+            pen = PEN_DAY_BG
+            if t[0] == VIEW_YEAR and t[1] == VIEW_MONTH and t[2] == day.dayOfMonth:
+                pen = PEN_DAY_BG_TODAY
+            display.set_pen(pen)
             display.rectangle(day.x, day.y, day.w, day.h)
             
             display.set_pen(PEN_DAY_NUMBER)
-            display.text(day.text, day.x+4, day.y+4)
+            display.text(f"{day.dayOfMonth:02d}", day.x+4, day.y+4)
+
+        text = f"{t[2]:02d}/{t[1]:02d}/{t[0]} {t[3]:02d}:{t[4]:02d}"
+        textW = display.measure_text(text)
+        display.text(text,480-8-textW,480-20)
+        DISPLAYED_MINUTE = t[4]
 
         presto.update()
         updateScreen = False

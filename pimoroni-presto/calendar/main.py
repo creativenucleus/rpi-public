@@ -17,6 +17,7 @@ presto = Presto(True)
 display = presto.display
 vector = PicoVector(display)
 
+LOG = []
 BRIGHTNESS = 'regular'
 DIM_TIME_IN_S = 30
 
@@ -37,15 +38,28 @@ def getPen(use, state):
         brightness = .2
     return display.create_pen(int(rgb[0] * brightness), int(rgb[1] * brightness), int(rgb[2] * brightness))
 
-# Show startup screen (otherwise we get pixelated junk before the first update)
-display.set_layer(0)
-display.set_pen(getPen('bg', BRIGHTNESS))
-display.clear()
-display.set_pen(getPen('text', BRIGHTNESS))
-text = "Initialising!"
-textW = display.measure_text(text, 3)
-display.text(text, int(240-textW/2), 6, textW, 3)
-presto.update()
+def showLog(text, abort=False):
+    global LOG
+    LOG.append(text)
+
+    display.set_layer(0)
+    display.set_pen(getPen('bg', BRIGHTNESS))
+    display.clear()
+    display.set_pen(getPen('text', BRIGHTNESS))
+
+    y = 20
+    for logItem in LOG:
+        print(logItem)
+        display.text(logItem, 20, y, 440, 3)
+        y = y + 20
+    presto.update()
+    if abort:
+        time.sleep(10)
+        sys.exit()
+
+    
+showLog("Initialising")
+
 
 class UIView(ui.UIBase):
     pass
@@ -155,14 +169,17 @@ def getDaysInMonth(year, month):
     # subtracting the number of the current day brings us back one month
     return (nextMonth.replace(day=1) - date).days
 
+showLog("Connecting to WiFi...")
 if not presto.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
-    print("Could not connect")
+    showLog("Could not connect", True)
+showLog("Connected")
 
+showLog("NTP Time Sync...")
 try:
     ntptime.settime()
-    print("NTP Time sync")
+    showLog("NTP Time Sync: Done")
 except OSError:
-    print("Unable to contact NTP server")
+    showLog("NTP Time Sync: Unable to contact server", True)
 
 today = datetime.date.today()
 VIEW_TYPE = "month" # "day" | "month"
@@ -215,7 +232,9 @@ def getDateTimeFromString(dtstr):
     return (int)(dtstr[0:4]), (int)(dtstr[4:6]), (int)(dtstr[6:8])
 
 for source in config.ICS_SOURCES:
+    showLog("Reading Calendar Source...")
     readICS(source)
+    showLog("Reading Calendar Source: Done")
 
 touch = presto.touch
 updateScreen = True
@@ -311,4 +330,4 @@ while True:
         presto.update()
         updateScreen = False
     
-    time.sleep(1/15)
+    time.sleep(1/15)                                                                                                 

@@ -23,6 +23,7 @@ DIM_TIME_IN_S = 30
 SKIN = 'light'
 SKINS={
     'dark': {
+        'name': "Dark",
         'bg': (20, 0, 60),
         'text': (255, 255, 255),
         'day_bg': (200, 200, 200),
@@ -30,6 +31,7 @@ SKINS={
         'day_text': (0, 0, 60),
     },
     'light': {
+        'name': "Light",
         'bg': (200, 200, 200),
         'text': (0, 0, 30),
         'day_bg': (255, 255, 255),
@@ -84,6 +86,22 @@ class UIButton(ui.UIBase):
 
     def isTouched(self, x, y):
         return x>=0 and x<=self.w and y>=0 and y<=self.h
+
+class UISkinButton(UIButton):
+    def __init__(self, key, x, y, w, h, name):
+        super().__init__(key, x, y, w, h)
+        self.name = name
+
+    def drawThis(self, display, ctx, x, y):
+        super().drawThis(display, ctx, x, y)
+        display.set_pen(ctx["pen_text"])
+        display.text(self.name, x + 8, y + 4)
+        skinID = self.key["skin"]
+        for i, penID in enumerate(["bg", "text", "day_bg", "day_bg_today", "day_text"]):
+            rgb = SKINS[skinID][penID]
+            display.set_pen(display.create_pen(rgb[0], rgb[1], rgb[2]))
+            display.rectangle(8 + x + i * 24, 24 + y, 20, 20)
+
 
 class UIDayToView(ui.UIBase):
     def __init__(self, key, x, y, year, month, day):
@@ -339,8 +357,8 @@ while True:
             VIEW = UIView("view", 0, 0)
             VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 414,4, 60,60))
             i = 0
-            for skinID in SKINS.keys():
-                VIEW.addChild(UIButton({"type": "skin", "skin": skinID}, 20,66 + i*70, 390, 60))
+            for skinID, skin in SKINS.items():
+                VIEW.addChild(UISkinButton({"type": "skin", "skin": skinID}, 20,66 + i*70, 390, 60, skin["name"]))
                 i = i + 1
         elif VIEW_TYPE == "month":
             VIEW = UIView("view", 0, 0)
@@ -364,6 +382,7 @@ while True:
 
         VIEW.draw(display, {
                 "localtime": time.localtime(),
+                "pen_bg": getPen('bg'),
                 "pen_text": getPen('text'),
                 "pen_day_bg": getPen('day_bg'),
                 "pen_day_bg_today": getPen('day_bg_today'),

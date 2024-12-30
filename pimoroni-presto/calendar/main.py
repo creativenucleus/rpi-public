@@ -4,48 +4,55 @@ import datetime
 import math
 import time
 import config
-import network
 import ntptime
 import sys
+import re
 import urequests
 import ui
 
 from presto import Presto
 from picovector import PicoVector, Polygon
 
-presto = Presto(True)
+presto = Presto(full_res=True)
 display = presto.display
 vector = PicoVector(display)
 
 LOG = []
-BRIGHTNESS = 'regular'
 DIM_TIME_IN_S = 30
 
-# use = 'bg', 'day_bg', 'today_bg'
-#       'text', 'day_text'
-# state = 'regular'|'dim'
-PEN_RGBS={
-    'bg': (20, 0, 60),
-    'text': (255, 255, 255),
-    'day_bg': (200, 200, 200),
-    'day_bg_today': (255, 255, 128),
-    'day_text': (0, 0, 60),
+SKIN = 'light'
+SKINS={
+    'dark': {
+        'bg': (20, 0, 60),
+        'text': (255, 255, 255),
+        'day_bg': (200, 200, 200),
+        'day_bg_today': (255, 255, 128),
+        'day_text': (0, 0, 60),
+    },
+    'light': {
+        'bg': (200, 200, 200),
+        'text': (0, 0, 30),
+        'day_bg': (255, 255, 255),
+        'day_bg_today': (255, 255, 128),
+        'day_text': (0, 0, 60),
+    },
 }
-def getPen(use, state):
-    rgb = PEN_RGBS[use]
-    brightness = 1
-    if state == 'dim':
-        brightness = .2
-    return display.create_pen(int(rgb[0] * brightness), int(rgb[1] * brightness), int(rgb[2] * brightness))
+
+def getPen(use):
+    rgb = SKINS[SKIN][use]
+    return display.create_pen(rgb[0], rgb[1], rgb[2])
 
 def showLog(text, abort=False):
     global LOG
     LOG.append(text)
 
     display.set_layer(0)
-    display.set_pen(getPen('bg', BRIGHTNESS))
+    if abort:
+        display.set_pen(display.create_pen(120, 0, 0))
+    else:
+        display.set_pen(getPen('bg'))
     display.clear()
-    display.set_pen(getPen('text', BRIGHTNESS))
+    display.set_pen(getPen('text'))
 
     y = 20
     for logItem in LOG:
@@ -171,7 +178,7 @@ def getDaysInMonth(year, month):
 
 showLog("Connecting to WiFi...")
 if not presto.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
-    showLog("Could not connect", True)
+    showLog("Could not connect", True)	#NB I don't think this will trigger - connect (at the moment) is a loop
 showLog("Connected")
 
 showLog("NTP Time Sync...")
@@ -189,7 +196,8 @@ EVENTS=[]
 EVENTS_ON_DAYS={}
 def readICS(url):
     res = urequests.get(url)
-    # #TODO Check res is ok
+    # #TODO Check result is ok
+
     vEventOpen = False
     summary = None
     dtStart = None
@@ -201,24 +209,47 @@ def readICS(url):
         else:
             if line == "END:VEVENT":
                 vEventOpen = False
-                iEvent = len(EVENTS)
-                EVENTS.append({"summary": summary, "start": dtStart, "end": dtEnd})
-                addEventToLookup(dtStart, dtEnd, iEvent)
+                if dtStart != None and dtEnd != None:
+                    iEvent = len(EVENTS)
+                    EVENTS.append({"summary": summary, "start": dtStart, "end": dtEnd})
                 summary = None
                 dtStart = None
                 dtEnd = None
             elif line.startswith("SUMMARY:"):
                 summary = line[8:]
             elif line.startswith("DTSTART"):
-                dtStart = line.split(':')[-1]
+                dtStart = decodeDTFromICS(line.split(':')[-1])
+                if dtStart == None:
+                    print(f"Could not read datetime: {line}")
             elif line.startswith("DTEND"):
-                dtEnd = line.split(':')[-1]
+                dtEnd = decodeDTFromICS(line.split(':')[-1])
+                if dtEnd == None:
+                    print(f"Could not read datetime: {line}")
     res.close()
 
     print(f"Found {len(EVENTS)} events")
 
+def indexEventsByDate():
+    for iEvent, event in enumerate(EVENTS):
+        addEventToLookup(event["start"], event["end"], iEvent)
+
+# handles 20241227 or 20241227T123456Z
+# TODO: DTSTART;TZID=Europe/London:20241126T100000
+RE_DT = re.compile(r"^(\d\d\d\d)(\d\d)(\d\d)(T(\d\d)(\d\d)(\d\d)Z)?$")
+def decodeDTFromICS(raw):
+    match = RE_DT.match(raw)
+    if match == None:
+        return None   
+    groups = match.groups()
+    out = {"date":{"y": int(groups[0]), "m": int(groups[1]), "d": int(groups[2])}, "time": None}
+    if groups[3] != None:
+        out["time"] = {"h": int(groups[4]), "m": int(groups[5]), "s": int(groups[6])}
+    return out
+
 def addEventToLookup(start, end, iEvent):
-    year, month, dayOfMonth = getDateTimeFromString(start)
+    dateStart = start["date"]
+    year, month, dayOfMonth = dateStart["y"], dateStart["m"], dateStart["d"]
+    # TODO: Iterate between two dates
     if not year in EVENTS_ON_DAYS:
         EVENTS_ON_DAYS[year] = {}
     if not month in EVENTS_ON_DAYS[year]:
@@ -226,18 +257,19 @@ def addEventToLookup(start, end, iEvent):
     if not dayOfMonth in EVENTS_ON_DAYS[year][month]:
         EVENTS_ON_DAYS[year][month][dayOfMonth] = []
     EVENTS_ON_DAYS[year][month][dayOfMonth].append(iEvent)
-        
-# TODO: Get time when it exists!
-def getDateTimeFromString(dtstr):
-    return (int)(dtstr[0:4]), (int)(dtstr[4:6]), (int)(dtstr[6:8])
-
+    
 for source in config.ICS_SOURCES:
-    showLog("Reading Calendar Source...")
+    showLog("Reading Calendar...")
     readICS(source)
-    showLog("Reading Calendar Source: Done")
+    showLog("Reading Calendar: Done")
+
+showLog("Indexing Events...")
+indexEventsByDate()
+showLog("Indexing Events: Done")
 
 touch = presto.touch
-updateScreen = True
+updateDisplay = True
+IS_DIMMED = False
 DISPLAYED_MINUTE = None
 BRIGHT_TIME = time.time()
 VIEW = UIView("view", 0, 0)
@@ -245,16 +277,18 @@ VIEW = UIView("view", 0, 0)
 while True:
     t = time.localtime()
     if DISPLAYED_MINUTE != t[4]:
-        updateScreen = True
+        updateDisplay = True
         
     touch.poll()
     if touch.state:
         BRIGHT_TIME = time.time()
         key = VIEW.getTouch(touch.x, touch.y)
         if key != None:
+            if key["type"] == "skin":
+                SKIN = key["skin"]
             if key["type"] == "nav":
                 if key["value"] == "settings":
-                    pass
+                    VIEW_TYPE = "settings"
                 elif key["value"] == "month":
                     VIEW_TYPE = "month"
                 elif key["value"] == "month-1":
@@ -280,39 +314,49 @@ while True:
                     
             elif key["type"] == "day":
                 VIEW_TYPE, VIEW_YEAR, VIEW_MONTH, VIEW_DAY = "day", key["year"], key["month"], key["day"]
-            
-        updateScreen = True
+                        
+        updateDisplay = True
 
-    wasBrightness = BRIGHTNESS
+    wasDimmed = IS_DIMMED
     if time.time() - BRIGHT_TIME > DIM_TIME_IN_S:
-        BRIGHTNESS = 'dim'
+        IS_DIMMED = True
     else:
-        BRIGHTNESS = 'regular'
+        IS_DIMMED = False
     
-    if BRIGHTNESS != wasBrightness:
-        updateScreen = True
+    if IS_DIMMED != wasDimmed:
+        brightness = 1
+        if IS_DIMMED:
+            brightness = 0.02
+        presto.set_backlight(brightness)
+        updateDisplay = True
 
-    if updateScreen:     
+    if updateDisplay:     
         display.set_layer(0)
-        display.set_pen(getPen('bg', BRIGHTNESS))
+        display.set_pen(getPen('bg'))
         display.clear()
 
-        if VIEW_TYPE == "month":
+        if VIEW_TYPE == "settings":
             VIEW = UIView("view", 0, 0)
-            VIEW.addChild(UIButton({"type": "nav", "value": "settings"}, 420,0, 60,60))
-            VIEW.addChild(UIButton({"type": "nav", "value": "month-1"}, 0,66, 60,390))
-            VIEW.addChild(UIButton({"type": "nav", "value": "month+1"}, 420,66, 60,390))
+            VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 414,4, 60,60))
+            i = 0
+            for skinID in SKINS.keys():
+                VIEW.addChild(UIButton({"type": "skin", "skin": skinID}, 20,66 + i*70, 390, 60))
+                i = i + 1
+        elif VIEW_TYPE == "month":
+            VIEW = UIView("view", 0, 0)
+            VIEW.addChild(UIButton({"type": "nav", "value": "settings"}, 414,4, 60,60))
+            VIEW.addChild(UIButton({"type": "nav", "value": "month-1"}, 6,194, 60,132))
+            VIEW.addChild(UIButton({"type": "nav", "value": "month+1"}, 414,194, 60,132))
             VIEW.addChild(UIMonthToView({"type": "month"}, 72, 10, VIEW_YEAR, VIEW_MONTH))
-        
         elif VIEW_TYPE == "day":
             VIEW = UIView("view", 0, 0)
-            VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 420,0, 60,60))
-            VIEW.addChild(UIButton({"type": "nav", "value": "day-1"}, 0,66, 60,390))
-            VIEW.addChild(UIButton({"type": "nav", "value": "day+1"}, 420,66, 60,390))
+            VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 414,4, 60,60))
+            VIEW.addChild(UIButton({"type": "nav", "value": "day-1"}, 6,194, 60,132))
+            VIEW.addChild(UIButton({"type": "nav", "value": "day+1"}, 414,194, 60,132))
             VIEW.addChild(UIDayToView({"type": "day-to-view"}, 72, 10, VIEW_YEAR, VIEW_MONTH, VIEW_DAY))
 
         # Clock
-        display.set_pen(getPen('text', BRIGHTNESS))
+        display.set_pen(getPen('text'))
         text = f"{t[2]:02d}/{t[1]:02d}/{t[0]} {t[3]:02d}:{t[4]:02d}"
         textW = display.measure_text(text)
         display.text(text,480-8-textW,480-20)
@@ -320,14 +364,15 @@ while True:
 
         VIEW.draw(display, {
                 "localtime": time.localtime(),
-                "pen_text": getPen('text', BRIGHTNESS),
-                "pen_day_bg": getPen('day_bg', BRIGHTNESS),
-                "pen_day_bg_today": getPen('day_bg_today', BRIGHTNESS),
-                "pen_day_text": getPen('day_text', BRIGHTNESS),
+                "pen_text": getPen('text'),
+                "pen_day_bg": getPen('day_bg'),
+                "pen_day_bg_today": getPen('day_bg_today'),
+                "pen_day_text": getPen('day_text'),
             }, 0,0
         )
 
-        presto.update()
-        updateScreen = False
+        if updateDisplay:
+            presto.update()
+            updateDisplay = False
     
     time.sleep(1/15)                                                                                                 

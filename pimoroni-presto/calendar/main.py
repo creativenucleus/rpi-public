@@ -125,7 +125,14 @@ class UIDayToView(ui.UIBase):
         ):
             i = 0
             for eventID in EVENTS_ON_DAYS[self.year][self.month][self.day]:
-                display.text(EVENTS[eventID]["summary"], x + 20, y + 32 + i*20)
+                event = EVENTS[eventID]
+                lineY = y + 32 + i*20
+                if event["start"]["time"] != None:
+                    time = event["start"]["time"]
+                    text = f"{time['h']:02d}:{time['m']:02d}"
+                    display.text(text, x + 20, lineY)
+                # TODO: clip and/or multiline
+                display.text(event["summary"], x + 80, lineY, 260)
                 i = i + 1
                     
 class UIMonthToView(ui.UIBase):

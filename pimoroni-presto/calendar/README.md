@@ -25,3 +25,15 @@ Touch the button on the left side of the screen to go back a month and the right
 There's a settings button in the top right corner. Press this to choose a skin (currently light or dark).
 
 If the calendar is left for 30 seconds, it dims. Press the centre of the screen to wake it.
+
+## Issues
+
+- No icons on buttons
+- Events need to be sorted by time in day view
+- Events that run over multiple days should do so
+- Left/right in day view across month boundaries is iffy
+- Should have a 'return to today'
+- In month view, at 00:00, the day should update
+- Should have a button / auto-refresh calendar
+- Interruptable web request for calendar?
+- Occasionally, NTP Time sync will fail.

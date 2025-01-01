@@ -14,6 +14,8 @@ Copy `_config.py` to `config.py` and set your Wifi SSID and Password.
 
 You can also set URLs in the ICS_SOURCES list. These will be loaded on startup.
 
+For Google Calendar, follow [the instructions: Sync or view your calendar -> Get your calendar (view only)](https://support.google.com/calendar/answer/37648?hl=en#zippy=%2Cget-your-calendar-view-only)
+
 ### Upload
 
 Upload `main.py` and `config.py` to the Presto if you'd like it to be the default booting program.
@@ -28,12 +30,11 @@ If the calendar is left for 30 seconds, it dims. Press the centre of the screen 
 
 ## Issues
 
-- No icons on buttons
-- Events need to be sorted by time in day view
+- Events with timezones timestamps are ignored
 - Events that run over multiple days should do so
-- Left/right in day view across month boundaries is iffy
 - Should have a 'return to today'
 - In month view, at 00:00, the day should update
 - Should have a button / auto-refresh calendar
-- Interruptable web request for calendar?
+- Interruptable web request for calendar sync?
 - Occasionally, NTP Time sync will fail.
+- Maybe VIEW_YEAR, VIEW_MONTH, VIEW_DAY should be collapsed into a Date object

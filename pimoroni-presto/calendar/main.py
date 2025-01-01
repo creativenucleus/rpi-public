@@ -67,7 +67,7 @@ def showLog(text, abort=False):
         sys.exit()
 
     
-showLog("Initialising")
+showLog("[Initialising]")
 
 
 class UIView(ui.UIBase):
@@ -87,6 +87,39 @@ class UIButton(ui.UIBase):
     def isTouched(self, x, y):
         return x>=0 and x<=self.w and y>=0 and y<=self.h
 
+class UIIconButton(UIButton):
+    def __init__(self, key, x, y, w, h, type):
+        super().__init__(key, x, y, w, h)
+        self.type = type
+
+    def drawThis(self, display, ctx, x, y):
+        super().drawThis(display, ctx, x, y)
+        if self.type == "left":
+            display.set_pen(ctx["pen_text"])
+            polygon = Polygon()
+            mx, my = x+self.w/2, y+self.h/2
+            polygon.path((mx+20, my-20), (mx-20, my), (mx+20, my+20))
+            vector.draw(polygon)
+        elif self.type == "right":
+            display.set_pen(ctx["pen_text"])
+            polygon = Polygon()
+            mx, my = x+self.w/2, y+self.h/2
+            polygon.path((mx-20, my-20), (mx+20, my), (mx-20, my+20))
+            vector.draw(polygon)
+        elif self.type == "settings":
+            display.set_pen(ctx["pen_text"])
+            polygon = Polygon()
+            mx, my = x+self.w/2, y+self.h/2
+            polygon.star(mx, my, 4, 10, 25)
+            vector.draw(polygon)
+        elif self.type == "month":
+            display.set_pen(ctx["pen_text"])
+            polygon = Polygon()
+            mx, my = x+self.w*.5, y+self.h*.5
+            mw, mh = self.w*.7, self.h*.5
+            polygon.rectangle(mx-mw/2, my-mh/2, mw, mh, corners=(4, 4, 4, 4), stroke=3)
+            vector.draw(polygon)
+
 class UISkinButton(UIButton):
     def __init__(self, key, x, y, w, h, name):
         super().__init__(key, x, y, w, h)
@@ -102,20 +135,28 @@ class UISkinButton(UIButton):
             display.set_pen(display.create_pen(rgb[0], rgb[1], rgb[2]))
             display.rectangle(8 + x + i * 24, 24 + y, 20, 20)
 
+# Month input is 1-12
+def getMonthName(iMonth):
+    monthNames = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"]
+    return monthNames[iMonth - 1]
+
+def eventsComparator(e):
+    print(e)
+    if e["start"]["time"] == None:
+        return -1	# Put these first
+    t = e["start"]["time"]
+    return t["h"] * 3600 + t["m"] * 60 + t["s"]
 
 class UIDayToView(ui.UIBase):
     def __init__(self, key, x, y, year, month, day):
         super().__init__(key, x, y)
-
-        monthNames = ["January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December"]
-        self.monthText = f"{monthNames[VIEW_MONTH-1]} {str(VIEW_YEAR)}"
         self.year, self.month, self.day = year, month, day
             
     def drawThis(self, display, ctx, x, y):
         display.set_pen(ctx["pen_text"])
 
-        text = f"{VIEW_DAY}/{VIEW_MONTH}/{VIEW_YEAR}"
+        text = f"{VIEW_DAY} {getMonthName(VIEW_MONTH)} {VIEW_YEAR}"
         textW = display.measure_text(text, 3)
         display.text(text, x + 168 - math.floor(textW/2), y, textW, 3)
         if (
@@ -123,9 +164,15 @@ class UIDayToView(ui.UIBase):
             and self.month in EVENTS_ON_DAYS[self.year]
             and self.day in EVENTS_ON_DAYS[self.year][self.month]
         ):
-            i = 0
+            # Get the events from our IDs and sort them by time...
+            events = []
             for eventID in EVENTS_ON_DAYS[self.year][self.month][self.day]:
-                event = EVENTS[eventID]
+                events.append(EVENTS[eventID])
+            
+            events.sort(key=lambda x: eventsComparator(x))
+
+            i = 0
+            for event in events:
                 lineY = y + 32 + i*20
                 if event["start"]["time"] != None:
                     time = event["start"]["time"]
@@ -134,14 +181,12 @@ class UIDayToView(ui.UIBase):
                 # TODO: clip and/or multiline
                 display.text(event["summary"], x + 80, lineY, 260)
                 i = i + 1
-                    
+
 class UIMonthToView(ui.UIBase):
     def __init__(self, key, x, y, year, month):
         super().__init__(key, x, y)
 
-        monthNames = ["January", "February", "March", "April", "May", "June",
-                      "July", "August", "September", "October", "November", "December"]
-        self.monthText = f"{monthNames[VIEW_MONTH-1]} {str(VIEW_YEAR)}"
+        self.monthText = f"{getMonthName(VIEW_MONTH)} {str(VIEW_YEAR)}"
 
         iDay=datetime.date(year, month, 1).weekday()
         daysInMonth = getDaysInMonth(year, month)
@@ -180,14 +225,14 @@ class UIDayInMonth(ui.UIBase):
         display.rectangle(x, y, 44, 60)    
 
         display.set_pen(ctx["pen_day_text"])
-        display.text(self.text, x+4, y+2)
+        display.text(self.text, x+4, y+2, 0, 3)
 
         if (
             self.year in EVENTS_ON_DAYS
             and self.month in EVENTS_ON_DAYS[self.year]
             and self.dayOfMonth in EVENTS_ON_DAYS[self.year][self.month]
         ):
-            display.text(f"{len(EVENTS_ON_DAYS[self.year][self.month][self.dayOfMonth])}", x+24, y+34)
+            display.text(f"{len(EVENTS_ON_DAYS[self.year][self.month][self.dayOfMonth])}", x+34, y+40)
 
     def isTouched(self, x, y):
         return x>=0 and x<=44 and y>=0 and y<=44
@@ -299,6 +344,17 @@ DISPLAYED_MINUTE = None
 BRIGHT_TIME = time.time()
 VIEW = UIView("view", 0, 0)
 
+# This function is a bit jank
+# NB monthAdd should be -1,0,1
+# NB dayAdd should be -1,0,1
+def changeDate(monthAdd, dayAdd):
+    global VIEW_YEAR, VIEW_MONTH, VIEW_DAY
+    # get a day in the middle of this month and shift it by 20 days either way if needed, then set the day
+    date = datetime.date(VIEW_YEAR, VIEW_MONTH, 15) + datetime.timedelta(days=monthAdd*20)
+    date = date.replace(day=VIEW_DAY)
+    date = date + datetime.timedelta(days=dayAdd)
+    VIEW_YEAR, VIEW_MONTH, VIEW_DAY = date.year, date.month, date.day
+
 while True:
     t = time.localtime()
     if DISPLAYED_MINUTE != t[4]:
@@ -317,26 +373,14 @@ while True:
                 elif key["value"] == "month":
                     VIEW_TYPE = "month"
                 elif key["value"] == "month-1":
-                    VIEW_MONTH = VIEW_MONTH - 1
-                    if VIEW_MONTH < 1:
-                        VIEW_MONTH = 12
-                        VIEW_YEAR = VIEW_YEAR - 1
+                    changeDate(-1, 0)
                 elif key["value"] == "month+1":
-                    VIEW_MONTH = VIEW_MONTH + 1
-                    if VIEW_MONTH > 12:
-                        VIEW_MONTH = 1
-                        VIEW_YEAR = VIEW_YEAR + 1
+                    changeDate(1, 0)
                 elif key["value"] == "day-1":
-                    VIEW_DAY = VIEW_DAY - 1
-                    if VIEW_DAY < 1:
-                        VIEW_DAY = 28
-                        VIEW_MONTH = VIEW_MONTH - 1
+                    changeDate(0, -1)
                 elif key["value"] == "day+1":
-                    VIEW_DAY = VIEW_DAY + 1
-                    if VIEW_DAY > 28:
-                        VIEW_DAY = 1
-                        VIEW_MONTH = VIEW_MONTH + 1
-                    
+                    changeDate(0, 1)
+ 
             elif key["type"] == "day":
                 VIEW_TYPE, VIEW_YEAR, VIEW_MONTH, VIEW_DAY = "day", key["year"], key["month"], key["day"]
                         
@@ -362,22 +406,22 @@ while True:
 
         if VIEW_TYPE == "settings":
             VIEW = UIView("view", 0, 0)
-            VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 414,4, 60,60))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "month"}, 414,4, 60,60, "month"))
             i = 0
             for skinID, skin in SKINS.items():
                 VIEW.addChild(UISkinButton({"type": "skin", "skin": skinID}, 20,66 + i*70, 390, 60, skin["name"]))
                 i = i + 1
         elif VIEW_TYPE == "month":
             VIEW = UIView("view", 0, 0)
-            VIEW.addChild(UIButton({"type": "nav", "value": "settings"}, 414,4, 60,60))
-            VIEW.addChild(UIButton({"type": "nav", "value": "month-1"}, 6,194, 60,132))
-            VIEW.addChild(UIButton({"type": "nav", "value": "month+1"}, 414,194, 60,132))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "settings"}, 414,4, 60,60, "settings"))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "month-1"}, 6,194, 60,132, "left"))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "month+1"}, 414,194, 60,132, "right"))
             VIEW.addChild(UIMonthToView({"type": "month"}, 72, 10, VIEW_YEAR, VIEW_MONTH))
         elif VIEW_TYPE == "day":
             VIEW = UIView("view", 0, 0)
-            VIEW.addChild(UIButton({"type": "nav", "value": "month"}, 414,4, 60,60))
-            VIEW.addChild(UIButton({"type": "nav", "value": "day-1"}, 6,194, 60,132))
-            VIEW.addChild(UIButton({"type": "nav", "value": "day+1"}, 414,194, 60,132))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "month"}, 414,4, 60,60, "month"))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "day-1"}, 6,194, 60,132, "left"))
+            VIEW.addChild(UIIconButton({"type": "nav", "value": "day+1"}, 414,194, 60,132, "right"))
             VIEW.addChild(UIDayToView({"type": "day-to-view"}, 72, 10, VIEW_YEAR, VIEW_MONTH, VIEW_DAY))
 
         # Clock

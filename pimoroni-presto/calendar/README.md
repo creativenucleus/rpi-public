@@ -18,7 +18,7 @@ For Google Calendar, follow [the instructions: Sync or view your calendar -> Get
 
 ### Upload
 
-Upload `main.py` and `config.py` to the Presto if you'd like it to be the default booting program.
+Upload `main.py`, `ui.py`, and `config.py` to the Presto if you'd like it to be the default booting program.
 
 The program should connect to Wifi, sync NTP time, and display a calendar view, highlighting the current day.
 

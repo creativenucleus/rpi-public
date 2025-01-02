@@ -50,4 +50,20 @@ class UIText(UIBase):
         display.set_pen(pen)
         display.text(self.text, x, y)
             
+
+class UITheme:
+    def __init__(self, name):
+        self.name = name
+        
+    def drawBG(self, display, skin):
+        pass
+
+class UISkin:
+    def __init__(self, name, rgbs):
+        self.name = name
+        self.rgbs = rgbs
+
+    def getPen(self, display, pen):
+        rgb = self.rgbs[pen]
+        return display.create_pen(rgb[0], rgb[1], rgb[2])
     

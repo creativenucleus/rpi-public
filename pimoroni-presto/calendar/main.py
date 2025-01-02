@@ -5,6 +5,7 @@ import math
 import time
 import config
 import ntptime
+import random
 import sys
 import re
 import urequests
@@ -14,59 +15,123 @@ from presto import Presto
 from picovector import PicoVector, Polygon
 
 presto = Presto(full_res=True)
-display = presto.display
-vector = PicoVector(display)
+DISPLAY = presto.display
+vector = PicoVector(DISPLAY)
 
 LOG = []
 DIM_TIME_IN_S = 30
 
-SKIN = 'light'
 SKINS={
-    'dark': {
-        'name': "Dark",
-        'bg': (20, 0, 60),
-        'text': (255, 255, 255),
-        'day_bg': (200, 200, 200),
-        'day_bg_today': (255, 255, 128),
-        'day_text': (0, 0, 60),
-    },
-    'light': {
-        'name': "Light",
-        'bg': (200, 200, 200),
+    'light': ui.UISkin("Light", {
+        'bg1': (200, 200, 200),
+        'bg2': (170, 170, 170),
         'text': (0, 0, 30),
         'day_bg': (255, 255, 255),
         'day_bg_today': (255, 255, 128),
         'day_text': (0, 0, 60),
-    },
+    }),
+    'dark': ui.UISkin("Dark", {
+        'bg1': (20, 0, 60),
+        'bg2': (10, 0, 40),
+        'text': (180, 180, 180),
+        'day_bg': (130, 130, 130),
+        'day_bg_today': (170, 170, 100),
+        'day_text': (0, 0, 60),
+    }),
+    'peach-plum': ui.UISkin("Peach and Plum", {
+        'bg1': (255, 230, 179),
+        'bg2': (235, 210, 160),
+        'text': (153, 0, 0),
+        'day_bg': (255, 255, 204),
+        'day_bg_today': (255, 153, 204),
+        'day_text': (134, 45, 134),
+    }),
+    'steel-blue': ui.UISkin("Steel Blue", {
+        'bg1': (153, 204, 255),
+        'bg2': (130, 180, 235),
+        'text': (0, 40, 77),
+        'day_bg': (179, 230, 255),
+        'day_bg_today': (77, 148, 255),
+        'day_text': (0, 0, 77),
+    }),
 }
+SKIN_ID, SKIN = None, None
+
+def setSkin(skinID):
+    global SKIN_ID, SKIN, SKINS
+    SKIN_ID = skinID
+    SKIN=SKINS[SKIN_ID]
+
+# Not sure subclassing is the right way to go, but...
+class UIThemeSunrise(ui.UITheme):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def drawBG(self, display, skin):
+        display.set_pen(skin.getPen(DISPLAY, 'bg1'))
+        display.clear()
+        display.set_pen(skin.getPen(DISPLAY, "bg2"))
+        display.circle(0,480,200)
+        for i in range(0,4):
+            a1, a2 = i*.4 + .05, i*.4 + .25
+            x1, y1 = int(math.sin(a1)*679), int(math.cos(a1)*679)
+            x2, y2 = int(math.sin(a2)*679), int(math.cos(a2)*679)
+            display.triangle(0,480,x1,480-y1,x2,480-y2)
+
+class UIThemeTheMatrix(ui.UITheme):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def drawBG(self, display, skin):
+        display.set_pen(skin.getPen(DISPLAY, 'bg1'))
+        display.clear()
+        display.set_pen(skin.getPen(DISPLAY, 'bg2'))
+        for i in range(0,50):
+            x=random.randint(0,int(488/16))*16-4
+            y=random.randint(0,int(496/16))*16-8
+            for i in range (0,8):
+                display.text(random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), x, y-i*16)
+
+THEMES={
+    'sunrise': UIThemeSunrise("Sunrise"),
+    'the-matrix': UIThemeTheMatrix("The Matrix"),
+}
+THEME_ID, THEME = None, None
+
+def setTheme(themeID):
+    global THEME_ID, THEME, THEMES
+    THEME_ID = themeID
+    THEME=THEMES[THEME_ID]
 
 def getPen(use):
-    rgb = SKINS[SKIN][use]
-    return display.create_pen(rgb[0], rgb[1], rgb[2])
+    return SKIN.getPen(DISPLAY, use)
 
 def showLog(text, abort=False):
     global LOG
     LOG.append(text)
 
-    display.set_layer(0)
+    DISPLAY.set_layer(0)
     if abort:
-        display.set_pen(display.create_pen(120, 0, 0))
+        DISPLAY.set_pen(display.create_pen(120, 0, 0))
     else:
-        display.set_pen(getPen('bg'))
-    display.clear()
-    display.set_pen(getPen('text'))
+        DISPLAY.set_pen(getPen('bg1'))
+    DISPLAY.clear()
+    DISPLAY.set_pen(getPen('text'))
 
     y = 20
     for logItem in LOG:
         print(logItem)
-        display.text(logItem, 20, y, 440, 3)
+        DISPLAY.text(logItem, 20, y, 440, 3)
         y = y + 20
     presto.update()
     if abort:
         time.sleep(10)
         sys.exit()
 
-    
+#TODO: get first array key, or pull from config
+setSkin('light')
+setTheme('sunrise')
+
 showLog("[Initialising]")
 
 
@@ -79,8 +144,13 @@ class UIButton(ui.UIBase):
         self.w, self.h = w, h
 
     def drawThis(self, display, ctx, x, y):
-        display.set_pen(ctx["pen_text"])
         polygon = Polygon()
+        display.set_pen(ctx["pen_day_bg"])
+        polygon.rectangle(x, y, self.w, self.h, (5,5,5,5))
+        vector.draw(polygon)
+
+        polygon = Polygon()
+        display.set_pen(ctx["pen_text"])
         polygon.rectangle(x, y, self.w, self.h, (5,5,5,5), 3)
         vector.draw(polygon)
 
@@ -128,13 +198,25 @@ class UISkinButton(UIButton):
     def drawThis(self, display, ctx, x, y):
         super().drawThis(display, ctx, x, y)
         display.set_pen(ctx["pen_text"])
-        display.text(self.name, x + 8, y + 4)
+        display.text(self.name, x + 8, y + 8)
         skinID = self.key["skin"]
-        for i, penID in enumerate(["bg", "text", "day_bg", "day_bg_today", "day_text"]):
-            rgb = SKINS[skinID][penID]
-            display.set_pen(display.create_pen(rgb[0], rgb[1], rgb[2]))
-            display.rectangle(8 + x + i * 24, 24 + y, 20, 20)
+        skin = SKINS[skinID]
+        display.set_pen(skin.getPen(DISPLAY, "bg1"))
+        display.rectangle(x + 8, y + 24, 100, 28)
+        for i, penID in enumerate(["text", "day_bg", "day_bg_today", "day_text"]):
+            display.set_pen(skin.getPen(DISPLAY, penID))
+            display.rectangle(x + 12 + i * 24, y + 28, 20, 20)
 
+class UIThemeButton(UIButton):
+    def __init__(self, key, x, y, w, h, name):
+        super().__init__(key, x, y, w, h)
+        self.name = name
+
+    def drawThis(self, display, ctx, x, y):
+        super().drawThis(display, ctx, x, y)
+        display.set_pen(ctx["pen_text"])
+        display.text(self.name, x + 8, y + 8)
+            
 # Month input is 1-12
 def getMonthName(iMonth):
     monthNames = ["January", "February", "March", "April", "May", "June",
@@ -142,7 +224,6 @@ def getMonthName(iMonth):
     return monthNames[iMonth - 1]
 
 def eventsComparator(e):
-    print(e)
     if e["start"]["time"] == None:
         return -1	# Put these first
     t = e["start"]["time"]
@@ -366,8 +447,10 @@ while True:
         key = VIEW.getTouch(touch.x, touch.y)
         if key != None:
             if key["type"] == "skin":
-                SKIN = key["skin"]
-            if key["type"] == "nav":
+                setSkin(key["skin"])
+            elif key["type"] == "theme":
+                setTheme(key["theme"])
+            elif key["type"] == "nav":
                 if key["value"] == "settings":
                     VIEW_TYPE = "settings"
                 elif key["value"] == "month":
@@ -400,16 +483,23 @@ while True:
         updateDisplay = True
 
     if updateDisplay:     
-        display.set_layer(0)
-        display.set_pen(getPen('bg'))
-        display.clear()
+        DISPLAY.set_layer(0)
+        THEME.drawBG(DISPLAY, SKIN)
 
         if VIEW_TYPE == "settings":
             VIEW = UIView("view", 0, 0)
             VIEW.addChild(UIIconButton({"type": "nav", "value": "month"}, 414,4, 60,60, "month"))
             i = 0
             for skinID, skin in SKINS.items():
-                VIEW.addChild(UISkinButton({"type": "skin", "skin": skinID}, 20,66 + i*70, 390, 60, skin["name"]))
+                x = 20 + i%2 * 200
+                y = 66 + math.floor(i/2) * 70
+                VIEW.addChild(UISkinButton({"type": "skin", "skin": skinID}, x, y, 190, 60, skin.name))
+                i = i + 1
+            i = i + (2-i)%2	# Shift to a new line
+            for themeID, theme in THEMES.items():
+                x = 20 + i%2 * 200
+                y = 66 + math.floor(i/2) * 70
+                VIEW.addChild(UIThemeButton({"type": "theme", "theme": themeID}, x, y, 190, 60, theme.name))
                 i = i + 1
         elif VIEW_TYPE == "month":
             VIEW = UIView("view", 0, 0)
@@ -425,15 +515,16 @@ while True:
             VIEW.addChild(UIDayToView({"type": "day-to-view"}, 72, 10, VIEW_YEAR, VIEW_MONTH, VIEW_DAY))
 
         # Clock
-        display.set_pen(getPen('text'))
+        DISPLAY.set_pen(getPen('text'))
         text = f"{t[2]:02d}/{t[1]:02d}/{t[0]} {t[3]:02d}:{t[4]:02d}"
-        textW = display.measure_text(text)
-        display.text(text,480-8-textW,480-20)
+        textW = DISPLAY.measure_text(text)
+        DISPLAY.text(text,480-8-textW,480-20)
         DISPLAYED_MINUTE = t[4]
 
-        VIEW.draw(display, {
+        VIEW.draw(DISPLAY, {
                 "localtime": time.localtime(),
-                "pen_bg": getPen('bg'),
+                "pen_bg1": getPen('bg1'),
+                "pen_bg2": getPen('bg2'),
                 "pen_text": getPen('text'),
                 "pen_day_bg": getPen('day_bg'),
                 "pen_day_bg_today": getPen('day_bg_today'),

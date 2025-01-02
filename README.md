@@ -8,7 +8,7 @@ No warranties, guarantees, etc :)
 
 ### Calendar
 
-Basic visual calendar with touchscreen left and right.
+Visual calendar with touchscreen and settings.
 
 ## License
 

@@ -1,6 +1,8 @@
 # Calendar
 
-A basic calendar view for [Pimoroni Presto](https://shop.pimoroni.com/products/presto?variant=54894104019323)
+A calendar view for [Pimoroni Presto](https://shop.pimoroni.com/products/presto?variant=54894104019323)
+
+https://github.com/user-attachments/assets/c896a799-80dd-407c-8035-96a00b15b15c
 
 ## Guarantees and Warranty
 

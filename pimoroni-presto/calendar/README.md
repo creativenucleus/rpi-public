@@ -18,7 +18,7 @@ For Google Calendar, follow [the instructions: Sync or view your calendar -> Get
 
 ### Upload
 
-Upload `main.py`, `ui.py`, and `config.py` to the Presto if you'd like it to be the default booting program.
+Using Thonny, upload `main.py`, `ui.py`, and `config.py` to the Presto if you'd like it to be the default booting program.
 
 The program should connect to Wifi, sync NTP time, and display a calendar view, highlighting the current day.
 
@@ -38,3 +38,4 @@ If the calendar is left for 30 seconds, it dims. Press the centre of the screen 
 - Interruptable web request for calendar sync?
 - Occasionally, NTP Time sync will fail.
 - Maybe VIEW_YEAR, VIEW_MONTH, VIEW_DAY should be collapsed into a Date object
+- More than 9 events in a day will align badly in month-to-view

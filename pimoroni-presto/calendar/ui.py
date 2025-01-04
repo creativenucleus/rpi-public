@@ -63,7 +63,6 @@ class UISkin:
         self.name = name
         self.rgbs = rgbs
 
-    def getPen(self, display, pen):
-        rgb = self.rgbs[pen]
-        return display.create_pen(rgb[0], rgb[1], rgb[2])
+    def getRGB(self, pen):
+        return self.rgbs[pen]
     

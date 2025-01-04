@@ -20,6 +20,8 @@ vector = PicoVector(DISPLAY)
 
 LOG = []
 DIM_TIME_IN_S = 30
+IS_DIMMED = False
+DIM_MULTIPLIER = 0.1
 
 SKINS={
     'light': ui.UISkin("Light", {
@@ -68,9 +70,9 @@ class UIThemeSunrise(ui.UITheme):
         super().__init__(name)
 
     def drawBG(self, display, skin):
-        display.set_pen(skin.getPen(DISPLAY, 'bg1'))
+        display.set_pen(getPen('bg1'))
         display.clear()
-        display.set_pen(skin.getPen(DISPLAY, "bg2"))
+        display.set_pen(getPen('bg2'))
         display.circle(0,480,200)
         for i in range(0,4):
             a1, a2 = i*.4 + .05, i*.4 + .25
@@ -83,9 +85,9 @@ class UIThemeTheMatrix(ui.UITheme):
         super().__init__(name)
 
     def drawBG(self, display, skin):
-        display.set_pen(skin.getPen(DISPLAY, 'bg1'))
+        display.set_pen(getPen('bg1'))
         display.clear()
-        display.set_pen(skin.getPen(DISPLAY, 'bg2'))
+        display.set_pen(getPen('bg2'))
         for i in range(0,50):
             x=random.randint(0,int(488/16))*16-4
             y=random.randint(0,int(496/16))*16-8
@@ -104,7 +106,13 @@ def setTheme(themeID):
     THEME=THEMES[THEME_ID]
 
 def getPen(use):
-    return SKIN.getPen(DISPLAY, use)
+    return getPenForSkin(SKIN, use)
+
+def getPenForSkin(skin, use):
+    global IS_DIMMED, DIM_MULTIPLIER
+    rgb = skin.getRGB(use)
+    brightness = DIM_MULTIPLIER if IS_DIMMED else 1
+    return DISPLAY.create_pen(int(rgb[0]*brightness), int(rgb[1]*brightness), int(rgb[2]*brightness))
 
 def showLog(text, abort=False):
     global LOG
@@ -146,12 +154,12 @@ class UIButton(ui.UIBase):
     def drawThis(self, display, ctx, x, y):
         polygon = Polygon()
         display.set_pen(ctx["pen_day_bg"])
-        polygon.rectangle(x, y, self.w, self.h, (5,5,5,5))
+        polygon.rectangle(x, y, self.w, self.h, corners=(5,5,5,5))
         vector.draw(polygon)
 
         polygon = Polygon()
         display.set_pen(ctx["pen_text"])
-        polygon.rectangle(x, y, self.w, self.h, (5,5,5,5), 3)
+        polygon.rectangle(x, y, self.w, self.h, corners=(5,5,5,5), stroke=3)
         vector.draw(polygon)
 
     def isTouched(self, x, y):
@@ -201,10 +209,10 @@ class UISkinButton(UIButton):
         display.text(self.name, x + 8, y + 8)
         skinID = self.key["skin"]
         skin = SKINS[skinID]
-        display.set_pen(skin.getPen(DISPLAY, "bg1"))
+        display.set_pen(getPenForSkin(skin, 'bg1'))
         display.rectangle(x + 8, y + 24, 100, 28)
         for i, penID in enumerate(["text", "day_bg", "day_bg_today", "day_text"]):
-            display.set_pen(skin.getPen(DISPLAY, penID))
+            display.set_pen(getPenForSkin(skin, penID))
             display.rectangle(x + 12 + i * 24, y + 28, 20, 20)
 
 class UIThemeButton(UIButton):
@@ -302,8 +310,10 @@ class UIDayInMonth(ui.UIBase):
         pen = ctx["pen_day_bg"]
         if isToday:
             pen = ctx["pen_day_bg_today"]
+        polygon = Polygon()
         display.set_pen(pen)
-        display.rectangle(x, y, 44, 60)    
+        polygon.rectangle(x, y, 44, 60, corners=(0, 0, 8, 0))
+        vector.draw(polygon)
 
         display.set_pen(ctx["pen_day_text"])
         display.text(self.text, x+4, y+2, 0, 3)
@@ -420,7 +430,6 @@ showLog("Indexing Events: Done")
 
 touch = presto.touch
 updateDisplay = True
-IS_DIMMED = False
 DISPLAYED_MINUTE = None
 BRIGHT_TIME = time.time()
 VIEW = UIView("view", 0, 0)

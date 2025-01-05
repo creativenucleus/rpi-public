@@ -2,8 +2,9 @@ from presto import Presto
 from math import sin, pi
 import time
 
-presto = Presto()
+presto = Presto(ambient_light=True)
 display = presto.display
+display.set_backlight(.001)
 
 PENBG = display.create_pen(0, 0, 0)
 

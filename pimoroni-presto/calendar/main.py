@@ -14,9 +14,9 @@ import ui
 from presto import Presto
 from picovector import PicoVector, Polygon
 
-presto = Presto(full_res=True)
-DISPLAY = presto.display
-vector = PicoVector(DISPLAY)
+PRESTO = Presto(full_res=True)
+DISPLAY = PRESTO.display
+VECTOR = PicoVector(DISPLAY)
 
 LOG = []
 DIM_TIME_IN_S = 30
@@ -131,7 +131,7 @@ def showLog(text, abort=False):
         print(logItem)
         DISPLAY.text(logItem, 20, y, 440, 3)
         y = y + 20
-    presto.update()
+    PRESTO.update()
     if abort:
         time.sleep(10)
         sys.exit()
@@ -155,12 +155,12 @@ class UIButton(ui.UIBase):
         polygon = Polygon()
         display.set_pen(ctx["pen_day_bg"])
         polygon.rectangle(x, y, self.w, self.h, corners=(5,5,5,5))
-        vector.draw(polygon)
+        VECTOR.draw(polygon)
 
         polygon = Polygon()
         display.set_pen(ctx["pen_text"])
         polygon.rectangle(x, y, self.w, self.h, corners=(5,5,5,5), stroke=3)
-        vector.draw(polygon)
+        VECTOR.draw(polygon)
 
     def isTouched(self, x, y):
         return x>=0 and x<=self.w and y>=0 and y<=self.h
@@ -177,26 +177,26 @@ class UIIconButton(UIButton):
             polygon = Polygon()
             mx, my = x+self.w/2, y+self.h/2
             polygon.path((mx+20, my-20), (mx-20, my), (mx+20, my+20))
-            vector.draw(polygon)
+            VECTOR.draw(polygon)
         elif self.type == "right":
             display.set_pen(ctx["pen_text"])
             polygon = Polygon()
             mx, my = x+self.w/2, y+self.h/2
             polygon.path((mx-20, my-20), (mx+20, my), (mx-20, my+20))
-            vector.draw(polygon)
+            VECTOR.draw(polygon)
         elif self.type == "settings":
             display.set_pen(ctx["pen_text"])
             polygon = Polygon()
             mx, my = x+self.w/2, y+self.h/2
             polygon.star(mx, my, 4, 10, 25)
-            vector.draw(polygon)
+            VECTOR.draw(polygon)
         elif self.type == "month":
             display.set_pen(ctx["pen_text"])
             polygon = Polygon()
             mx, my = x+self.w*.5, y+self.h*.5
             mw, mh = self.w*.7, self.h*.5
             polygon.rectangle(mx-mw/2, my-mh/2, mw, mh, corners=(4, 4, 4, 4), stroke=3)
-            vector.draw(polygon)
+            VECTOR.draw(polygon)
 
 class UISkinButton(UIButton):
     def __init__(self, key, x, y, w, h, name):
@@ -243,6 +243,11 @@ class UIDayToView(ui.UIBase):
         self.year, self.month, self.day = year, month, day
             
     def drawThis(self, display, ctx, x, y):
+        display.set_pen(ctx["pen_day_bg"])
+        polygon = Polygon()
+        polygon.rectangle(x, y + 56, 336, 330, corners=(8,8,8,8))
+        VECTOR.draw(polygon)
+
         display.set_pen(ctx["pen_text"])
 
         text = f"{VIEW_DAY} {getMonthName(VIEW_MONTH)} {VIEW_YEAR}"
@@ -262,7 +267,7 @@ class UIDayToView(ui.UIBase):
 
             i = 0
             for event in events:
-                lineY = y + 32 + i*20
+                lineY = y + 80 + i * 32
                 if event["start"]["time"] != None:
                     time = event["start"]["time"]
                     text = f"{time['h']:02d}:{time['m']:02d}"
@@ -270,6 +275,8 @@ class UIDayToView(ui.UIBase):
                 # TODO: clip and/or multiline
                 display.text(event["summary"], x + 80, lineY, 260)
                 i = i + 1
+        else:
+            display.text("(no events)", x + 112, y + 200)
 
 class UIMonthToView(ui.UIBase):
     def __init__(self, key, x, y, year, month):
@@ -313,7 +320,7 @@ class UIDayInMonth(ui.UIBase):
         polygon = Polygon()
         display.set_pen(pen)
         polygon.rectangle(x, y, 44, 60, corners=(0, 0, 8, 0))
-        vector.draw(polygon)
+        VECTOR.draw(polygon)
 
         display.set_pen(ctx["pen_day_text"])
         display.text(self.text, x+4, y+2, 0, 3)
@@ -338,7 +345,7 @@ def getDaysInMonth(year, month):
     return (nextMonth.replace(day=1) - date).days
 
 showLog("Connecting to WiFi...")
-if not presto.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
+if not PRESTO.connect(config.WIFI_SSID, config.WIFI_PASSWORD):
     showLog("Could not connect", True)	#NB I don't think this will trigger - connect (at the moment) is a loop
 showLog("Connected")
 
@@ -377,13 +384,15 @@ def readICS(url):
                 dtStart = None
                 dtEnd = None
             elif line.startswith("SUMMARY:"):
-                summary = line[8:]
+                # Only set this if it hasn't already been set (SUMMARY also appears in BEGIN:VALARM)
+                if summary == None:
+                    summary = line[8:]
             elif line.startswith("DTSTART"):
-                dtStart = decodeDTFromICS(line.split(':')[-1])
+                dtStart = decodeDTFromICS(line[7:])
                 if dtStart == None:
                     print(f"Could not read datetime: {line}")
             elif line.startswith("DTEND"):
-                dtEnd = decodeDTFromICS(line.split(':')[-1])
+                dtEnd = decodeDTFromICS(line[5:])
                 if dtEnd == None:
                     print(f"Could not read datetime: {line}")
     res.close()
@@ -394,30 +403,54 @@ def indexEventsByDate():
     for iEvent, event in enumerate(EVENTS):
         addEventToLookup(event["start"], event["end"], iEvent)
 
-# handles 20241227 or 20241227T123456Z
-# TODO: DTSTART;TZID=Europe/London:20241126T100000
-RE_DT = re.compile(r"^(\d\d\d\d)(\d\d)(\d\d)(T(\d\d)(\d\d)(\d\d)Z)?$")
-def decodeDTFromICS(raw):
-    match = RE_DT.match(raw)
+# receives
+# :20241227
+# :20241227T123456Z
+# ;TZID=Europe/London:20241126T100000 (#TODO: Don't ignore timezone)
+RE_DT = re.compile(r"^(\d\d\d\d)(\d\d)(\d\d)(T(\d\d)(\d\d)(\d\d)Z?)?$") # Matches yyyymmdd(ThhmmssZ?)
+def decodeDTFromICS(line):
+    parts = line.split(':')
+    if len(parts) != 2:
+        return None
+    
+    match = RE_DT.match(parts[1])
     if match == None:
-        return None   
+        return None
+
     groups = match.groups()
     out = {"date":{"y": int(groups[0]), "m": int(groups[1]), "d": int(groups[2])}, "time": None}
     if groups[3] != None:
         out["time"] = {"h": int(groups[4]), "m": int(groups[5]), "s": int(groups[6])}
     return out
 
+# Add an event to all the days between start and end...
 def addEventToLookup(start, end, iEvent):
     dateStart = start["date"]
-    year, month, dayOfMonth = dateStart["y"], dateStart["m"], dateStart["d"]
-    # TODO: Iterate between two dates
-    if not year in EVENTS_ON_DAYS:
-        EVENTS_ON_DAYS[year] = {}
-    if not month in EVENTS_ON_DAYS[year]:
-        EVENTS_ON_DAYS[year][month] = {}
-    if not dayOfMonth in EVENTS_ON_DAYS[year][month]:
-        EVENTS_ON_DAYS[year][month][dayOfMonth] = []
-    EVENTS_ON_DAYS[year][month][dayOfMonth].append(iEvent)
+    dateStart = datetime.date(dateStart["y"], dateStart["m"], dateStart["d"])
+    dateEnd = end["date"]
+    dateEnd = datetime.date(dateEnd["y"], dateEnd["m"], dateEnd["d"])
+    
+    delta = dateEnd - dateStart
+    # Check this is coherent (not negative, not huge!)
+    deltaDays = delta.days
+    if deltaDays < 0 or deltaDays > 366:
+        return  # (TODO: maybe we should just add to the first day instead?
+
+    # If a day has a time, then deltaDays will be one less than it should (TODO: maybe hackish?)
+    if start["time"] != None:
+        deltaDays = deltaDays + 1
+        
+    for i in range(deltaDays):
+        day = dateStart + datetime.timedelta(days=i)
+    
+        year, month, dayOfMonth = day.year, day.month, day.day
+        if not year in EVENTS_ON_DAYS:
+            EVENTS_ON_DAYS[year] = {}
+        if not month in EVENTS_ON_DAYS[year]:
+            EVENTS_ON_DAYS[year][month] = {}
+        if not dayOfMonth in EVENTS_ON_DAYS[year][month]:
+            EVENTS_ON_DAYS[year][month][dayOfMonth] = []
+        EVENTS_ON_DAYS[year][month][dayOfMonth].append(iEvent)
     
 for source in config.ICS_SOURCES:
     showLog("Reading Calendar...")
@@ -428,7 +461,7 @@ showLog("Indexing Events...")
 indexEventsByDate()
 showLog("Indexing Events: Done")
 
-touch = presto.touch
+touch = PRESTO.touch
 updateDisplay = True
 DISPLAYED_MINUTE = None
 BRIGHT_TIME = time.time()
@@ -488,7 +521,7 @@ while True:
         brightness = 1
         if IS_DIMMED:
             brightness = 0.02
-        presto.set_backlight(brightness)
+        PRESTO.set_backlight(brightness)
         updateDisplay = True
 
     if updateDisplay:     
@@ -542,7 +575,7 @@ while True:
         )
 
         if updateDisplay:
-            presto.update()
+            PRESTO.update()
             updateDisplay = False
     
     time.sleep(1/15)                                                                                                 

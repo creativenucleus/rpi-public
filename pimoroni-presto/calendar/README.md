@@ -34,7 +34,6 @@ If the calendar is left for 30 seconds, it dims. Press the centre of the screen 
 
 - In the day view, events that run over multiple days should show start / end / neither times as appropriate
 - Should have a 'return to today'
-- In month view, at 00:00, the day should update
 - Should have a button / auto-refresh calendar
 - Interruptable web request for calendar sync?
 - Occasionally, NTP Time sync will fail.

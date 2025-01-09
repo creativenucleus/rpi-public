@@ -12,9 +12,9 @@ None! :)
 
 ### Config
 
-Copy `_config.py` to `config.py` and set your Wifi SSID and Password.
+Copy `_config.py` to `config.py` and set your `UTC_OFFSET`, `WIFI_SSID` and `WIFI_PASSWORD`.
 
-You can also set URLs in the ICS_SOURCES list. These will be loaded on startup.
+You can also set URLs in the `ICS_SOURCES` list. These will be loaded on startup.
 
 For Google Calendar, follow [the instructions: Sync or view your calendar -> Get your calendar (view only)](https://support.google.com/calendar/answer/37648?hl=en#zippy=%2Cget-your-calendar-view-only)
 
@@ -32,10 +32,11 @@ If the calendar is left for 30 seconds, it dims. Press the centre of the screen 
 
 ## Issues
 
-- In the day view, events that run over multiple days should show start / end / neither times as appropriate
 - Should have a 'return to today'
-- In month view, at 00:00, the day should update
+- Text alignments and clipping
 - Should have a button / auto-refresh calendar
+- Load and save settings (theme/style/utc_offset)
+- Add UTC_OFFSET adjust in the settings panel
 - Interruptable web request for calendar sync?
 - Occasionally, NTP Time sync will fail.
 - Timezones in timestamps are ignored

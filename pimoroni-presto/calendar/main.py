@@ -14,14 +14,14 @@ import ui
 from presto import Presto
 from picovector import PicoVector, Polygon
 
-PRESTO = Presto(full_res=True)
+PRESTO = Presto(full_res=True,layers=1)
 DISPLAY = PRESTO.display
 VECTOR = PicoVector(DISPLAY)
 
 LOG = []
 DIM_TIME_IN_S = 30
 IS_DIMMED = False
-DIM_MULTIPLIER = 0.1
+DIM_MULTIPLIER = 0.25
 
 SKINS={
     'light': ui.UISkin("Light", {
@@ -268,12 +268,42 @@ class UIDayToView(ui.UIBase):
             i = 0
             for event in events:
                 lineY = y + 80 + i * 32
-                if event["start"]["time"] != None:
-                    time = event["start"]["time"]
-                    text = f"{time['h']:02d}:{time['m']:02d}"
-                    display.text(text, x + 20, lineY)
+                
+                # Long winded... maybe be better with some type change...
+                startDate, startTime = event["start"]["date"], event["start"]["time"]
+                endDate, endTime = event["end"]["date"], event["end"]["time"]
+                adjustEndDay = -1 if (startTime == None and endTime == None) else 0
+                todayIsStart = (startDate["d"] == self.day
+                    and startDate["m"] == self.month
+                    and startDate["y"] == self.year)
+                todayIsEnd = (endDate["d"] + adjustEndDay == self.day	# TODO: Shonky!
+                    and endDate["m"] == self.month
+                    and endDate["y"] == self.year)
+                
+                startString = ""
+                if todayIsStart:
+                    if startTime == None:
+                        startString == "|-"
+                    else:
+                        time = startTime
+                        startString = f"{time['h']:02d}:{time['m']:02d}"
+                else:
+                    startString = "<-"
+                    
+                endString = ""
+                if todayIsEnd:
+                    if endTime == None:
+                        endString == "-|"
+                    else:
+                        time = endTime
+                        endString = f"{time['h']:02d}:{time['m']:02d}"
+                else:
+                    endString = "  ->"
+                
+                display.text(startString, x + 15, lineY)
+                display.text(endString, x + 275, lineY) #TODO: Right align!
                 # TODO: clip and/or multiline
-                display.text(event["summary"], x + 80, lineY, 260)
+                display.text(event["summary"], x + 75, lineY, 200)
                 i = i + 1
         else:
             display.text("(no events)", x + 112, y + 200)
@@ -353,6 +383,8 @@ showLog("NTP Time Sync...")
 try:
     ntptime.settime()
     showLog("NTP Time Sync: Done")
+    t = time.localtime(time.time() + int((60 * 60) * config.UTC_OFFSET))
+    machine.RTC().datetime((t[0], t[1], t[2], 0, t[3], t[4], t[5], 0))
 except OSError:
     showLog("NTP Time Sync: Unable to contact server", True)
 

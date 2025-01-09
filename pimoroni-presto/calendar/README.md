@@ -33,7 +33,7 @@ If the calendar is left for 30 seconds, it dims. Press the centre of the screen 
 ## Issues
 
 - Should have a 'return to today'
-- Text alignments and clipping
+- Text alignments and clipping on day event view
 - Should have a button / auto-refresh calendar
 - Load and save settings (theme/style/utc_offset)
 - Add UTC_OFFSET adjust in the settings panel
